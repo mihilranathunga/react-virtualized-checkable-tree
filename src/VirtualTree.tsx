@@ -1,183 +1,118 @@
-import React from "react";
+import React, { useState, ReactText } from "react";
 import { AutoSizer, List as VirtualList } from "react-virtualized";
 import IconElement from "./IconElement";
+import { TreeDataItem } from "./treeDataItem";
+import { ExpandButton } from "./ExpandButton";
+import { TreeCheckBox } from "./TreeCheckbox";
 
-const ROW_HEIGHT = 32;
-const RANDOM_WORDS = [
-  "abstrusity",
-  "advertisable",
-  "bellwood",
-  "benzole",
-  "boreum",
-  "brenda",
-  "cassiopeian",
-  "chansonnier",
-  "cleric",
-  "conclusional",
-  "conventicle",
-  "copalm",
-  "cornopion",
-  "crossbar",
-  "disputative",
-  "djilas",
-  "ebracteate",
-  "ephemerally",
-  "epidemical",
-  "evasive",
-  "eyeglasses",
-  "farragut",
-  "fenny",
-  "ferryman",
-  "fluently",
-  "foreigner",
-  "genseng",
-  "glaiket",
-  "haunch",
-  "histogeny",
-  "illocution",
-  "imprescriptible",
-  "inapproachable",
-  "incisory",
-  "intrusiveness",
-  "isoceraunic",
-  "japygid",
-  "juiciest",
-  "jump",
-  "kananga",
-  "leavening",
-  "legerdemain",
-  "licence",
-  "licia",
-  "luanda",
-  "malaga",
-  "mathewson",
-  "nonhumus",
-  "nonsailor",
-  "nummary",
-  "nyregyhza",
-  "onanist",
-  "opis",
-  "orphrey",
-  "paganising",
-  "pebbling",
-  "penchi",
-  "photopia",
-  "pinocle",
-  "principally",
-  "prosector.",
-  "radiosensitive",
-  "redbrick",
-  "reexposure",
-  "revived",
-  "subexternal",
-  "sukarnapura",
-  "supersphenoid",
-  "tabularizing",
-  "territorialism",
-  "tester",
-  "thalassography",
-  "tuberculise",
-  "uncranked",
-  "undersawyer",
-  "unimpartible",
-  "unsubdivided",
-  "untwining",
-  "unwaived",
-  "webfoot",
-  "wedeling",
-  "wellingborough",
-  "whiffet",
-  "whipstall",
-  "wot",
-  "yonkersite",
-  "zonary"
-];
-const data = createRandomizedData();
+const DEFAULT_ROW_HEIGHT = 32;
 
-export function createRandomizedData() {
-  var data = [];
-
-  for (var i = 0; i < 10000; i++) {
-    data.push(createRandomizedItem(0));
-  }
-
-  return data;
-}
-
-export function createRandomizedItem(depth: number) {
-  const item: any = {};
-  item.children = [];
-  item.name = RANDOM_WORDS[Math.floor(Math.random() * RANDOM_WORDS.length)];
-
-  var numChildren = depth < 3 ? Math.floor(Math.random() * 5) : 0;
-  for (var i = 0; i < numChildren; i++) {
-    item.children.push(createRandomizedItem(depth + 1));
-  }
-
-  item.expanded = numChildren > 0 && Math.random() < 0.25;
-
-  return item;
-}
-
-export default function VirtualTree() {
+export default function VirtualTree(props: {
+  data?: TreeDataItem[];
+  rowHeight?: number;
+  expandable?: boolean;
+  selectedIds?: ReactText[];
+}) {
+  const [selectedItem, SetSelectedItem] = useState<TreeDataItem>();
+  const [checkedItemIdList, SetCheckedItemIdList] = useState<ReactText[]>(
+    props.selectedIds || []
+  );
+  const data = props.data || [];
+  const singleRowHeight = props.rowHeight || DEFAULT_ROW_HEIGHT;
   let List: any;
   function setRef(ref: any) {
     List = ref;
+
+    if (List) {
+      List.recomputeRowHeights();
+      List.forceUpdate();
+    }
   }
 
-  const renderItem = function (item: any, keyPrefix: string) {
-    const onClick = function (event: any) {
+  const renderItem = function (item: TreeDataItem, keyPrefix: string) {
+    const onExpand = function (event: any) {
       event.stopPropagation();
       item.expanded = !item.expanded;
       List.recomputeRowHeights();
       List.forceUpdate();
     };
 
-    const props: any = { key: keyPrefix };
-    let children = [];
-    let itemText: any;
+    const onSelect = function (event: any) {
+      event.stopPropagation();
+      item.selected = !item.selected;
+      if (selectedItem && selectedItem.id !== item.id) {
+        selectedItem.selected = false;
+      }
+      if (item.selected) {
+        SetSelectedItem(item);
+      } else {
+        SetSelectedItem(undefined);
+      }
+    };
+
+    const onCheckChange = function (event: any, status: boolean) {
+      item.checked = status;
+      if (status) {
+        SetCheckedItemIdList([...checkedItemIdList, item.id]);
+      } else {
+        SetCheckedItemIdList(
+          checkedItemIdList.filter((elm) => elm !== item.id)
+        );
+      }
+    };
+
+    const props = { key: keyPrefix };
+    let children: any = [];
+    let itemText = item.name;
 
     if (item.children.length) {
       if (item.expanded) {
-        //   props.onClick = onClick;
-        itemText = "[-] " + item.name;
         children = item.children.map(function (child: any, index: number) {
           return renderItem(child, keyPrefix + "-" + index);
         });
       } else {
-        itemText = "[+] " + item.name;
       }
     } else {
-      itemText = "    " + item.name;
     }
 
     children.unshift(
-      <div
-        className="item"
-        key="label"
-        style={{ cursor: item.children.length ? "pointer" : "auto" }}
-      >
-        <IconElement onClick={onClick} />
-        <input
-          type="checkbox"
-          id={keyPrefix}
-          name={keyPrefix}
-          value="false"
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
+      <div className="tree-item" key="label">
+        <ExpandButton
+          expandable={item.children.length > 1}
+          expanded={item.expanded}
+          onExpand={onExpand}
+          onCollapse={onExpand}
         />
-        <label htmlFor={keyPrefix}>{itemText}</label>
+        <div className="tree-domain-image">
+          <IconElement src={item.icon} alt={item.iconDescription} size="24px" />
+        </div>
+        <div className="tree-picked-item">
+          <TreeCheckBox
+            class="tree-checkbox"
+            id={keyPrefix}
+            filter={item.isFilter}
+            checked={item.checked}
+            indeterminate={item.indeterminate}
+            disabled={item.disabled}
+            onToggleCheck={onCheckChange}
+          />
+        </div>
+        <span
+          className={"tree-item-lbl" + (item.selected ? " selected" : "")}
+          onClick={onSelect}
+        >
+          {itemText}
+        </span>
       </div>
     );
     return (
-      <ul>
-        <li {...props} children={children}></li>
+      <ul key={keyPrefix} className="list">
+        <li {...props} children={children} className="list-item"></li>
       </ul>
     );
   };
 
-  const getExpandedItemCount = function (item: any) {
+  const getExpandedItemCount = function (item: TreeDataItem) {
     var count = 1;
 
     if (item.expanded) {
@@ -195,14 +130,14 @@ export default function VirtualTree() {
     const renderedCell = renderItem(data[params.index], params.index);
 
     return (
-      <ul key={params.key} style={params.style}>
+      <div key={params.key} style={params.style}>
         {renderedCell}
-      </ul>
+      </div>
     );
   };
 
   const rowHeight = function rowHeight(params: any) {
-    return getExpandedItemCount(data[params.index]) * ROW_HEIGHT;
+    return getExpandedItemCount(data[params.index]) * singleRowHeight;
   };
 
   return (
